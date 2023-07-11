@@ -1,13 +1,24 @@
+// Copyright 2011 ISSuh. All rights reserved.
+// Licensed under the MIT license that can be found in the LICENSE file.
+
+// Package skiplist implement skip list data structure.
+// Reference: https://en.wikipedia.org/wiki/Skip_list
+
+// Example
+
+// list := skipList.New(5)
+// list.Set("key", "value")
+
+// item := list.Get("key")
+// fmt.Printf("key : %s / value : %s", item.key, item.value)
+
 package skipList
 
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
-)
-
-const (
-	DefaultMaxLevel int = 5
 )
 
 type Item struct {
@@ -16,48 +27,29 @@ type Item struct {
 }
 
 type Node struct {
-	maxLevel  int
+	levels    int
 	prevNode  []*Node
 	nextNode  []*Node
 	item      Item
 	isEndNode bool
 }
 
-func (node *Node) IsEndNode() bool {
-	return node.isEndNode
-}
-
-func (node *Node) Match(key string) bool {
+func (node *Node) match(key string) bool {
 	return key == node.item.key
 }
 
-func (node *Node) MaxLevel() int {
-	return node.maxLevel
+func (node *Node) nodeLevel() int {
+	return node.levels
 }
 
-func (node *Node) Key() string {
-	return node.item.key
-}
-
-func (node *Node) Value() string {
-	return node.item.value
-}
-
-func (node *Node) Next(targetLevel int) *Node {
-	if node.maxLevel < targetLevel {
+func (node *Node) next(targetLevel int) *Node {
+	if node.levels < targetLevel {
 		return nil
 	}
 	return node.nextNode[targetLevel]
 }
 
-func (node *Node) Prev(targetLevel int) *Node {
-	if node.maxLevel < targetLevel {
-		return nil
-	}
-	return node.prevNode[targetLevel]
-}
-
-func (node *Node) AppendOnLevel(newNode *Node, targetLevel int) {
+func (node *Node) appendOnLevel(newNode *Node, targetLevel int) {
 	if node.nextNode[targetLevel] != nil {
 		node.nextNode[targetLevel].prevNode[targetLevel] = newNode
 	}
@@ -68,7 +60,7 @@ func (node *Node) AppendOnLevel(newNode *Node, targetLevel int) {
 	node.nextNode[targetLevel] = newNode
 }
 
-func (node *Node) RemoveOnLevel(targetLevel int) {
+func (node *Node) removeOnLevel(targetLevel int) {
 	if node.nextNode[targetLevel] != nil {
 		node.nextNode[targetLevel].prevNode[targetLevel] = node.prevNode[targetLevel]
 	}
@@ -78,20 +70,19 @@ func (node *Node) RemoveOnLevel(targetLevel int) {
 	}
 }
 
-// type NodeList struct {
-// 	level int
-// }
-
 type SkipList struct {
-	maxLevel   int
-	randSource rand.Source
-	head       *Node
-	tail       *Node
+	maxLevel int
+	length   int
+	head     *Node
+	tail     *Node
+	rand     *rand.Rand
+	mutex    sync.RWMutex
+	history  []*Node
 }
 
 func New(maxLevel int) *SkipList {
 	headNode := &Node{
-		maxLevel:  maxLevel,
+		levels:    maxLevel,
 		prevNode:  make([]*Node, maxLevel),
 		nextNode:  make([]*Node, maxLevel),
 		item:      Item{},
@@ -99,7 +90,7 @@ func New(maxLevel int) *SkipList {
 	}
 
 	tailNode := &Node{
-		maxLevel:  maxLevel,
+		levels:    maxLevel,
 		prevNode:  make([]*Node, maxLevel),
 		nextNode:  make([]*Node, maxLevel),
 		item:      Item{},
@@ -107,14 +98,16 @@ func New(maxLevel int) *SkipList {
 	}
 
 	list := SkipList{
-		maxLevel:   maxLevel,
-		randSource: rand.New(rand.NewSource(time.Now().UnixNano())),
-		head:       headNode,
-		tail:       tailNode,
+		maxLevel: maxLevel,
+		length:   0,
+		rand:     rand.New(rand.NewSource(time.Now().UnixNano())),
+		head:     headNode,
+		tail:     tailNode,
+		history:  make([]*Node, maxLevel),
 	}
 
-	for i := 0; i < DefaultMaxLevel; i++ {
-		list.head.AppendOnLevel(list.tail, i)
+	for i := 0; i < maxLevel; i++ {
+		list.head.appendOnLevel(list.tail, i)
 	}
 
 	return &list
@@ -124,40 +117,52 @@ func (list *SkipList) MaxLevel() int {
 	return list.maxLevel
 }
 
+func (list *SkipList) Length() int {
+	return list.length
+}
+
 func (list *SkipList) Set(key, value string) {
-	history := make([]*Node, list.maxLevel)
-	node := list.findInternal(key, history)
+	node := list.findInternal(key, list.history)
 	if node != nil {
 		node.item.value = value
 		return
 	}
 
-	list.insertNode(key, value, history)
-}
-
-func (list *SkipList) Remove(key string) {
+	list.insertNode(key, value, list.history)
 }
 
 func (list *SkipList) Get(key string) *Item {
-	history := make([]*Node, list.maxLevel)
-	node := list.findInternal(key, history)
+	node := list.findInternal(key, list.history)
 	if node == nil {
 		return nil
 	}
 	return &node.item
 }
 
+func (list *SkipList) Remove(key string) {
+	node := list.findInternal(key, list.history)
+	if node == nil {
+		return
+	}
+
+	list.deleteNode(node)
+	list.length--
+}
+
 func (list *SkipList) findInternal(key string, history []*Node) *Node {
+	list.mutex.Lock()
+	defer list.mutex.Unlock()
+
 	current := list.head
 	for i := list.maxLevel - 1; i >= 0; i-- {
-		for list.tail != current.Next(i) && current.Next(i).item.key < key {
-			current = current.Next(i)
+		for list.tail != current.next(i) && current.next(i).item.key < key {
+			current = current.next(i)
 		}
 		history[i] = current
 	}
 
-	current = current.Next(0)
-	if current.isEndNode || !current.Match(key) {
+	current = current.next(0)
+	if current.isEndNode || !current.match(key) {
 		return nil
 	}
 	return current
@@ -165,34 +170,48 @@ func (list *SkipList) findInternal(key string, history []*Node) *Node {
 
 func (list *SkipList) insertNode(key, value string, history []*Node) {
 	randomLevel := list.randomLevel()
-	fmt.Println("randomLevel : ", randomLevel)
 
 	node := &Node{
-		maxLevel:  randomLevel,
+		levels:    randomLevel,
 		prevNode:  make([]*Node, randomLevel),
 		nextNode:  make([]*Node, randomLevel),
 		item:      Item{key: key, value: value},
 		isEndNode: false,
 	}
 
-	for i := 0; i < randomLevel; i++ {
-		history[i].AppendOnLevel(node, i)
+	list.mutex.Lock()
+	defer list.mutex.Unlock()
+
+	for i := 1; i <= randomLevel; i++ {
+		randomLevelIndex := i - 1
+		history[randomLevelIndex].appendOnLevel(node, randomLevelIndex)
+	}
+
+	list.length++
+}
+
+func (list *SkipList) deleteNode(node *Node) {
+	list.mutex.Lock()
+	defer list.mutex.Unlock()
+
+	for i := 0; i < node.nodeLevel(); i++ {
+		node.removeOnLevel(i)
 	}
 }
 
 func (list *SkipList) randomLevel() int {
-	const prob = 1 << 62
+	const prob = 1 << 30
 	maxLevel := list.maxLevel
-	rand := list.randSource
+	rand := list.rand
 
 	level := 1
-	for ; (level < maxLevel) && (rand.Int63() > prob); level++ {
+	for ; (level < maxLevel) && (rand.Int31() > prob); level++ {
 	}
 
 	return level
 }
 
-func (list *SkipList) Print() {
+func (list *SkipList) PrintForDebug() {
 	for i := list.maxLevel - 1; i >= 0; i-- {
 		list.printLevel(i)
 	}
@@ -207,7 +226,7 @@ func (list *SkipList) printLevel(level int) {
 			fmt.Printf("[%s, %s]\t", current.item.key, current.item.value)
 		}
 
-		current = current.Next(level)
+		current = current.next(level)
 		if current == nil {
 			current = list.tail
 		}
