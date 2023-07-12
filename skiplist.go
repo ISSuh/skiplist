@@ -15,41 +15,56 @@
 package skiplist
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 )
 
-type Item struct {
+type SkipListItem struct {
 	key   string
-	value string
+	value interface{}
 }
 
-type Node struct {
+func (item *SkipListItem) Key() string {
+	return item.key
+}
+
+func (item *SkipListItem) Value() interface{} {
+	return item.value
+}
+
+type SkipListNode struct {
 	levels    int
-	prevNode  []*Node
-	nextNode  []*Node
-	item      Item
+	prevNode  []*SkipListNode
+	nextNode  []*SkipListNode
+	item      SkipListItem
 	isEndNode bool
 }
 
-func (node *Node) match(key string) bool {
+func (node *SkipListNode) match(key string) bool {
 	return key == node.item.key
 }
 
-func (node *Node) nodeLevel() int {
+func (node *SkipListNode) nodeLevel() int {
 	return node.levels
 }
 
-func (node *Node) next(targetLevel int) *Node {
+func (node *SkipListNode) Next() *SkipListNode {
+	return node.nextNode[0]
+}
+
+func (node *SkipListNode) Prev() *SkipListNode {
+	return node.prevNode[0]
+}
+
+func (node *SkipListNode) next(targetLevel int) *SkipListNode {
 	if node.levels < targetLevel {
 		return nil
 	}
 	return node.nextNode[targetLevel]
 }
 
-func (node *Node) appendOnLevel(newNode *Node, targetLevel int) {
+func (node *SkipListNode) appendOnLevel(newNode *SkipListNode, targetLevel int) {
 	if node.nextNode[targetLevel] != nil {
 		node.nextNode[targetLevel].prevNode[targetLevel] = newNode
 	}
@@ -60,7 +75,7 @@ func (node *Node) appendOnLevel(newNode *Node, targetLevel int) {
 	node.nextNode[targetLevel] = newNode
 }
 
-func (node *Node) removeOnLevel(targetLevel int) {
+func (node *SkipListNode) removeOnLevel(targetLevel int) {
 	if node.nextNode[targetLevel] != nil {
 		node.nextNode[targetLevel].prevNode[targetLevel] = node.prevNode[targetLevel]
 	}
@@ -73,27 +88,27 @@ func (node *Node) removeOnLevel(targetLevel int) {
 type SkipList struct {
 	maxLevel int
 	length   int
-	head     *Node
-	tail     *Node
+	head     *SkipListNode
+	tail     *SkipListNode
 	rand     *rand.Rand
 	mutex    sync.RWMutex
-	history  []*Node
+	history  []*SkipListNode
 }
 
 func New(maxLevel int) *SkipList {
-	headNode := &Node{
+	headNode := &SkipListNode{
 		levels:    maxLevel,
-		prevNode:  make([]*Node, maxLevel),
-		nextNode:  make([]*Node, maxLevel),
-		item:      Item{},
+		prevNode:  make([]*SkipListNode, maxLevel),
+		nextNode:  make([]*SkipListNode, maxLevel),
+		item:      SkipListItem{},
 		isEndNode: true,
 	}
 
-	tailNode := &Node{
+	tailNode := &SkipListNode{
 		levels:    maxLevel,
-		prevNode:  make([]*Node, maxLevel),
-		nextNode:  make([]*Node, maxLevel),
-		item:      Item{},
+		prevNode:  make([]*SkipListNode, maxLevel),
+		nextNode:  make([]*SkipListNode, maxLevel),
+		item:      SkipListItem{},
 		isEndNode: true,
 	}
 
@@ -103,7 +118,7 @@ func New(maxLevel int) *SkipList {
 		rand:     rand.New(rand.NewSource(time.Now().UnixNano())),
 		head:     headNode,
 		tail:     tailNode,
-		history:  make([]*Node, maxLevel),
+		history:  make([]*SkipListNode, maxLevel),
 	}
 
 	for i := 0; i < maxLevel; i++ {
@@ -121,7 +136,15 @@ func (list *SkipList) Length() int {
 	return list.length
 }
 
-func (list *SkipList) Set(key, value string) {
+func (list *SkipList) Front() *SkipListNode {
+	return list.head.nextNode[0]
+}
+
+func (list *SkipList) Back() *SkipListNode {
+	return list.tail.prevNode[0]
+}
+
+func (list *SkipList) Set(key string, value interface{}) {
 	node := list.findInternal(key, list.history)
 	if node != nil {
 		node.item.value = value
@@ -131,7 +154,7 @@ func (list *SkipList) Set(key, value string) {
 	list.insertNode(key, value, list.history)
 }
 
-func (list *SkipList) Get(key string) *Item {
+func (list *SkipList) Get(key string) *SkipListItem {
 	node := list.findInternal(key, list.history)
 	if node == nil {
 		return nil
@@ -149,7 +172,7 @@ func (list *SkipList) Remove(key string) {
 	list.length--
 }
 
-func (list *SkipList) findInternal(key string, history []*Node) *Node {
+func (list *SkipList) findInternal(key string, history []*SkipListNode) *SkipListNode {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 
@@ -168,14 +191,14 @@ func (list *SkipList) findInternal(key string, history []*Node) *Node {
 	return current
 }
 
-func (list *SkipList) insertNode(key, value string, history []*Node) {
+func (list *SkipList) insertNode(key string, value interface{}, history []*SkipListNode) {
 	randomLevel := list.randomLevel()
 
-	node := &Node{
+	node := &SkipListNode{
 		levels:    randomLevel,
-		prevNode:  make([]*Node, randomLevel),
-		nextNode:  make([]*Node, randomLevel),
-		item:      Item{key: key, value: value},
+		prevNode:  make([]*SkipListNode, randomLevel),
+		nextNode:  make([]*SkipListNode, randomLevel),
+		item:      SkipListItem{key: key, value: value},
 		isEndNode: false,
 	}
 
@@ -190,7 +213,7 @@ func (list *SkipList) insertNode(key, value string, history []*Node) {
 	list.length++
 }
 
-func (list *SkipList) deleteNode(node *Node) {
+func (list *SkipList) deleteNode(node *SkipListNode) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 
@@ -209,27 +232,4 @@ func (list *SkipList) randomLevel() int {
 	}
 
 	return level
-}
-
-func (list *SkipList) PrintForDebug() {
-	for i := list.maxLevel - 1; i >= 0; i-- {
-		list.printLevel(i)
-	}
-	fmt.Println("----------------------------------")
-}
-
-func (list *SkipList) printLevel(level int) {
-	fmt.Printf("[%d] : ", level)
-	current := list.head
-	for current != list.tail {
-		if current != list.head {
-			fmt.Printf("[%s, %s]\t", current.item.key, current.item.value)
-		}
-
-		current = current.next(level)
-		if current == nil {
-			current = list.tail
-		}
-	}
-	fmt.Println()
 }

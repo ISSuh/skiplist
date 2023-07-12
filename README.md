@@ -31,3 +31,10 @@ BenchmarkGet-8           5000000              1834 ns/op        2725794.73 MB/s 
 PASS
 ok      github.com/ISSuh/skiplist       18.181s
 ```
+
+```bash
+$ go test -cover                
+PASS
+        github.com/ISSuh/skiplist       coverage: 100.0% of statements
+ok      github.com/ISSuh/skiplist       0.337s
+```
