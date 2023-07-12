@@ -1,4 +1,4 @@
-package skipList
+package skiplist
 
 import (
 	"strconv"
