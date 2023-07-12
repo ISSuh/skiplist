@@ -12,7 +12,7 @@
 // item := list.Get("key")
 // fmt.Printf("key : %s / value : %s", item.key, item.value)
 
-package skipList
+package skiplist
 
 import (
 	"fmt"
