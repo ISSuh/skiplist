@@ -41,14 +41,6 @@ type SkipListNode struct {
 	isEndNode bool
 }
 
-func (node *SkipListNode) match(key string) bool {
-	return key == node.item.key
-}
-
-func (node *SkipListNode) nodeLevel() int {
-	return node.levels
-}
-
 func (node *SkipListNode) Next() *SkipListNode {
 	return node.nextNode[0]
 }
@@ -57,11 +49,27 @@ func (node *SkipListNode) Prev() *SkipListNode {
 	return node.prevNode[0]
 }
 
+func (node *SkipListNode) Key() string {
+	return node.item.key
+}
+
+func (node *SkipListNode) Value() interface{} {
+	return node.item.value
+}
+
 func (node *SkipListNode) next(targetLevel int) *SkipListNode {
 	if node.levels < targetLevel {
 		return nil
 	}
 	return node.nextNode[targetLevel]
+}
+
+func (node *SkipListNode) match(key string) bool {
+	return key == node.item.key
+}
+
+func (node *SkipListNode) nodeLevel() int {
+	return node.levels
 }
 
 func (node *SkipListNode) appendOnLevel(newNode *SkipListNode, targetLevel int) {

@@ -173,8 +173,8 @@ func TestIterateNext(t *testing.T) {
 	node := list.Front()
 	for _, word := range temp {
 		if assert.NotNil(t, node) {
-			assert.Equal(t, node.item.key, word)
-			assert.Equal(t, node.item.value, word)
+			assert.Equal(t, node.Key(), word)
+			assert.Equal(t, node.Value(), word)
 		}
 		node = node.Next()
 	}
@@ -201,8 +201,8 @@ func TestIteratePrev(t *testing.T) {
 	for i := range temp {
 		word := temp[len(temp)-1-i]
 		if assert.NotNil(t, node) {
-			assert.Equal(t, node.item.key, word)
-			assert.Equal(t, node.item.value, word)
+			assert.Equal(t, node.Key(), word)
+			assert.Equal(t, node.Value(), word)
 		}
 		node = node.Prev()
 	}
