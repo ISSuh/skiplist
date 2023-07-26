@@ -30,7 +30,7 @@ func TestOverLevelOnNode(t *testing.T) {
 		levels:    5,
 		prevNode:  make([]*SkipListNode, 5),
 		nextNode:  make([]*SkipListNode, 5),
-		item:      SkipListItem{key: "1", value: "1"},
+		item:      SkipListItem{key: "1", value: []byte("1")},
 		isEndNode: false,
 	}
 
@@ -38,7 +38,7 @@ func TestOverLevelOnNode(t *testing.T) {
 		levels:    3,
 		prevNode:  make([]*SkipListNode, 3),
 		nextNode:  make([]*SkipListNode, 3),
-		item:      SkipListItem{key: "2", value: "2"},
+		item:      SkipListItem{key: "2", value: []byte("2")},
 		isEndNode: false,
 	}
 
@@ -81,7 +81,7 @@ func TestSetAndGet(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i)
-		list.Set(key, value)
+		list.Set(key, []byte(value))
 	}
 
 	for i := 0; i < 100; i++ {
@@ -91,7 +91,7 @@ func TestSetAndGet(t *testing.T) {
 		item := list.Get(key)
 
 		if assert.NotNil(t, item) {
-			assert.Equal(t, item.value, value)
+			assert.Equal(t, item.Value(), []byte(value))
 		}
 	}
 }
@@ -103,12 +103,12 @@ func TestGet(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i)
-		list.Set(key, value)
+		list.Set(key, []byte(value))
 	}
 
 	item_1 := list.Get("1")
 	assert.Equal(t, item_1.Key(), "1")
-	assert.Equal(t, item_1.Value(), "1")
+	assert.Equal(t, item_1.Value(), []byte("1"))
 
 	item_empty := list.Get("222")
 	assert.Equal(t, item_empty, (*SkipListItem)(nil))
@@ -118,16 +118,16 @@ func TestUpdate(t *testing.T) {
 	list := New(5)
 	assert.NotEqual(t, list, nil)
 
-	list.Set("1", "1")
+	list.Set("1", []byte("1"))
 
 	item_1 := list.Get("1")
 	assert.Equal(t, item_1.Key(), "1")
-	assert.Equal(t, item_1.Value(), "1")
+	assert.Equal(t, item_1.Value(), []byte("1"))
 
-	list.Set("1", "11")
+	list.Set("1", []byte("11"))
 	item_1 = list.Get("1")
 	assert.Equal(t, item_1.Key(), "1")
-	assert.Equal(t, item_1.Value(), "11")
+	assert.Equal(t, item_1.Value(), []byte("11"))
 }
 
 func TestRemove(t *testing.T) {
@@ -137,12 +137,12 @@ func TestRemove(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i)
-		list.Set(key, value)
+		list.Set(key, []byte(value))
 	}
 
 	item_1 := list.Get("1")
 	assert.Equal(t, item_1.key, "1")
-	assert.Equal(t, item_1.value, "1")
+	assert.Equal(t, item_1.value, []byte("1"))
 
 	list.Remove("1")
 	item_temp := list.Get("1")
@@ -163,7 +163,7 @@ func TestIterateNext(t *testing.T) {
 
 		key := word
 		value := word
-		list.Set(key, value)
+		list.Set(key, []byte(value))
 
 		temp = append(temp, word)
 	}
@@ -174,7 +174,7 @@ func TestIterateNext(t *testing.T) {
 	for _, word := range temp {
 		if assert.NotNil(t, node) {
 			assert.Equal(t, node.Key(), word)
-			assert.Equal(t, node.Value(), word)
+			assert.Equal(t, node.Value(), []byte(word))
 		}
 		node = node.Next()
 	}
@@ -190,7 +190,7 @@ func TestIteratePrev(t *testing.T) {
 
 		key := word
 		value := word
-		list.Set(key, value)
+		list.Set(key, []byte(value))
 
 		temp = append(temp, word)
 	}
@@ -202,7 +202,7 @@ func TestIteratePrev(t *testing.T) {
 		word := temp[len(temp)-1-i]
 		if assert.NotNil(t, node) {
 			assert.Equal(t, node.Key(), word)
-			assert.Equal(t, node.Value(), word)
+			assert.Equal(t, node.Value(), []byte(word))
 		}
 		node = node.Prev()
 	}
@@ -218,7 +218,7 @@ func TestConcurrency(t *testing.T) {
 		for i := 0; i < 100000; i++ {
 			key := strconv.Itoa(i)
 			value := strconv.Itoa(i)
-			list.Set(key, value)
+			list.Set(key, []byte(value))
 		}
 		wg.Done()
 	}()
@@ -245,7 +245,7 @@ func BenchmarkSet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		key := strconv.Itoa(i)
 		value := strconv.Itoa(i)
-		benchList.Set(key, value)
+		benchList.Set(key, []byte(value))
 	}
 
 	b.SetBytes(int64(b.N))

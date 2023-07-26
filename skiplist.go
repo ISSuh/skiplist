@@ -22,14 +22,14 @@ import (
 
 type SkipListItem struct {
 	key   string
-	value interface{}
+	value []byte
 }
 
 func (item *SkipListItem) Key() string {
 	return item.key
 }
 
-func (item *SkipListItem) Value() interface{} {
+func (item *SkipListItem) Value() []byte {
 	return item.value
 }
 
@@ -42,10 +42,16 @@ type SkipListNode struct {
 }
 
 func (node *SkipListNode) Next() *SkipListNode {
+	if node.nextNode[0] != nil && node.nextNode[0].isEndNode {
+		return nil
+	}
 	return node.nextNode[0]
 }
 
 func (node *SkipListNode) Prev() *SkipListNode {
+	if node.prevNode[0] != nil && node.prevNode[0].isEndNode {
+		return nil
+	}
 	return node.prevNode[0]
 }
 
@@ -53,7 +59,7 @@ func (node *SkipListNode) Key() string {
 	return node.item.key
 }
 
-func (node *SkipListNode) Value() interface{} {
+func (node *SkipListNode) Value() []byte {
 	return node.item.value
 }
 
@@ -96,6 +102,7 @@ func (node *SkipListNode) removeOnLevel(targetLevel int) {
 type SkipList struct {
 	maxLevel int
 	length   int
+	size     uint64
 	head     *SkipListNode
 	tail     *SkipListNode
 	rand     *rand.Rand
@@ -144,6 +151,10 @@ func (list *SkipList) Length() int {
 	return list.length
 }
 
+func (list *SkipList) Size() uint64 {
+	return list.size
+}
+
 func (list *SkipList) Front() *SkipListNode {
 	return list.head.nextNode[0]
 }
@@ -152,7 +163,7 @@ func (list *SkipList) Back() *SkipListNode {
 	return list.tail.prevNode[0]
 }
 
-func (list *SkipList) Set(key string, value interface{}) {
+func (list *SkipList) Set(key string, value []byte) {
 	node := list.findInternal(key, list.history)
 	if node != nil {
 		node.item.value = value
@@ -177,7 +188,6 @@ func (list *SkipList) Remove(key string) {
 	}
 
 	list.deleteNode(node)
-	list.length--
 }
 
 func (list *SkipList) findInternal(key string, history []*SkipListNode) *SkipListNode {
@@ -199,7 +209,7 @@ func (list *SkipList) findInternal(key string, history []*SkipListNode) *SkipLis
 	return current
 }
 
-func (list *SkipList) insertNode(key string, value interface{}, history []*SkipListNode) {
+func (list *SkipList) insertNode(key string, value []byte, history []*SkipListNode) {
 	randomLevel := list.randomLevel()
 
 	node := &SkipListNode{
@@ -219,15 +229,22 @@ func (list *SkipList) insertNode(key string, value interface{}, history []*SkipL
 	}
 
 	list.length++
+	list.size += uint64(len(key))
+	list.size += uint64(len(value))
 }
 
 func (list *SkipList) deleteNode(node *SkipListNode) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 
+	list.size -= uint64(len(node.Key()))
+	list.size -= uint64(len(node.Value()))
+
 	for i := 0; i < node.nodeLevel(); i++ {
 		node.removeOnLevel(i)
 	}
+
+	list.length--
 }
 
 func (list *SkipList) randomLevel() int {
