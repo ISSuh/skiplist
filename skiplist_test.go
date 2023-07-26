@@ -114,6 +114,19 @@ func TestGet(t *testing.T) {
 	assert.Equal(t, item_empty, (*SkipListItem)(nil))
 }
 
+func TestSize(t *testing.T) {
+	list := New(5)
+	assert.NotEqual(t, list, nil)
+
+	for i := 0; i < 2; i++ {
+		key := strconv.Itoa(i)
+		value := strconv.Itoa(i)
+		list.Set(key, []byte(value))
+	}
+
+	assert.Equal(t, list.Size(), uint64(4))
+}
+
 func TestUpdate(t *testing.T) {
 	list := New(5)
 	assert.NotEqual(t, list, nil)
